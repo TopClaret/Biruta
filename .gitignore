@@ -1,2 +1,5 @@
 .env
 *.pem
+spooler_restart_log.log
+__pycache__/
+*.pyc

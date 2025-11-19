@@ -11,6 +11,7 @@ import wmi
 import time
 import logging
 import pythoncom
+import socket
 import win32com.client
 import pywintypes
 from datetime import datetime, timezone
@@ -140,7 +141,35 @@ def release_all_wmi_connections():
     except Exception:
         pass
 
+def is_local_host(host):
+    try:
+        if not host:
+            return True
+        h = host.strip().lower()
+        if h in ("127.0.0.1", "localhost", "::1"):
+            return True
+        local_names = {
+            (os.environ.get("COMPUTERNAME", "") or "").strip().lower(),
+            socket.gethostname().strip().lower(),
+            socket.getfqdn().strip().lower(),
+        }
+        if h in local_names:
+            return True
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+            if h == (local_ip or "").strip().lower():
+                return True
+        except Exception:
+            pass
+        return False
+    except Exception:
+        return False
+
 def connect_wmi(remote_host, user, password, domain=None):
+    if is_local_host(remote_host):
+        conn = wmi.WMI(namespace='root\\cimv2')
+        track_wmi_conn(conn)
+        return conn
     locator = win32com.client.Dispatch("WbemScripting.SWbemLocator")
     locator.Security_.AuthenticationLevel = 6
     _user = user or ""
@@ -177,7 +206,6 @@ def format_wmi_error(e):
 # Define o caminho para o script PowerShell
 # Certifique-se de que este caminho está correto no seu sistema
 POWERSHELL_RESTART_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "restart_spooler.ps1")
-POWERSHELL_CLEAR_PRINT_JOBS_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "clear_print_jobs.ps1")
 
 # Lista de serviços padrão para reinício sequencial
 DEFAULT_SERVICES_TO_RESTART = [
@@ -355,6 +383,7 @@ def start_service_monitor():
     domain = SECURITY.sanitize_string(data.get('domain'))
     auth_username = frontend_username
     auth_password = frontend_password
+    domain = SECURITY.sanitize_string(data.get('domain'))
     if remote_host and not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "IP/Host remoto inválido."}), 400
     if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
@@ -521,7 +550,7 @@ def restart_service():
     if not require_csrf():
         return jsonify({"status": "error", "message": "Falha de validação CSRF."}), 403
     data = request.get_json()
-    print(f"DEBUG: Dados recebidos para /restart_service: {data}")
+    
     service_name = data.get('service_name')
     remote_host = SECURITY.sanitize_string(data.get('remote_host'))
     frontend_username = SECURITY.sanitize_string(data.get('username'))
@@ -700,69 +729,6 @@ def restart_all_services_once():
         auth_username = None
         auth_password = None
 
-@app.route('/clear_print_jobs', methods=['POST'])
-def clear_print_jobs():
-    ip = client_ip()
-    key = f"rl_clear_print_jobs:{ip}"
-    if not rate_limit(key, limit=20, window_sec=60):
-        log_action("Segurança", ip, "Alerta", "Rate limit atingido em clear_print_jobs")
-        return jsonify({"status": "error", "message": "Limite de requisições atingido. Tente novamente mais tarde."}), 429
-
-    if not require_csrf():
-        return jsonify({"status": "error", "message": "Falha de validação CSRF."}), 403
-
-    print("DEBUG: Entrando na função clear_print_jobs.")
-    data = request.get_json()
-    remote_host = SECURITY.sanitize_string(data.get('remote_host'))
-    frontend_username = SECURITY.sanitize_string(data.get('username'))
-    frontend_password = data.get('password')
-
-    auth_username = frontend_username
-    auth_password = frontend_password
-
-    if not remote_host or not validate_remote_host(remote_host):
-        return jsonify({"status": "error", "message": "Nome do host ou IP remoto não fornecido."}), 400
-
-    if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
-        message = "Credenciais inválidas. Informe usuário e senha no frontend."
-        log_action("Limpar Trabalhos Impressão Remoto", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
-
-    try:
-        print(f"DEBUG: Executando comando PowerShell para limpar trabalhos de impressão em {remote_host}.")
-        result = subprocess.run(
-            ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", POWERSHELL_CLEAR_PRINT_JOBS_SCRIPT_PATH,
-             "-RemoteHost", remote_host, "-Username", auth_username, "-Password", auth_password],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        message = f"Trabalhos de impressão limpos com sucesso em {remote_host}. Saída: {result.stdout}"
-        log_action("Limpar Trabalhos Impressão Remoto", remote_host, "Sucesso", message)
-        print(f"DEBUG: Script PowerShell para limpeza de impressão executado com sucesso. Saída: {result.stdout}")
-        auth_username = None
-        auth_password = None
-        return jsonify({"status": "success", "message": message, "output": result.stdout})
-
-    except subprocess.CalledProcessError as e:
-        message = f"Erro ao limpar trabalhos de impressão em {remote_host}: {e.stderr}"
-        log_action("Limpar Trabalhos Impressão Remoto", remote_host, "Falha", message)
-        print(f"DEBUG: Erro ao executar script PowerShell para limpeza de impressão. Erro: {e.stderr}, Saída: {e.stdout}")
-        auth_username = None
-        auth_password = None
-        return jsonify({"status": "error", "message": message, "output": e.stderr}), 500
-    except FileNotFoundError:
-        message = "Erro: powershell.exe não encontrado. Certifique-se de que o PowerShell está instalado e no PATH."
-        log_action("Limpar Trabalhos Impressão Remoto", remote_host, "Falha", message)
-        print("DEBUG: Erro FileNotFoundError: powershell.exe não encontrado.")
-        auth_username = None
-        auth_password = None
-        return jsonify({"status": "error", "message": message}), 500
-    except Exception as e:
-        message = f"Ocorreu um erro inesperado ao tentar limpar trabalhos de impressão: {str(e)}"
-        log_action("Limpar Trabalhos Impressão Remoto", remote_host, "Falha", message)
-        print(f"DEBUG: Ocorreu um erro inesperado ao tentar limpar trabalhos de impressão: {e}")
-        return jsonify({"status": "error", "message": message}), 500
 
 @app.route('/list_printers', methods=['POST'])
 def list_printers():
@@ -852,6 +818,79 @@ def list_printers():
     
     return response_data, status_code
 
+@app.route('/clear_print_jobs_robust', methods=['POST'])
+def clear_print_jobs_robust():
+    ip = client_ip()
+    key = f"rl_clear_print_jobs_robust:{ip}"
+    if not rate_limit(key, limit=20, window_sec=60):
+        log_action("Segurança", ip, "Alerta", "Rate limit atingido em clear_print_jobs_robust")
+        return jsonify({"status": "error", "message": "Limite de requisições atingido. Tente novamente mais tarde."}), 429
+
+    if not require_csrf():
+        return jsonify({"status": "error", "message": "Falha de validação CSRF."}), 403
+    data = request.get_json()
+    remote_host = SECURITY.sanitize_string(data.get('remote_host'))
+    frontend_username = SECURITY.sanitize_string(data.get('username'))
+    frontend_password = data.get('password')
+    domain = SECURITY.sanitize_string(data.get('domain'))
+
+    auth_username = frontend_username
+    auth_password = frontend_password
+    if not remote_host or not validate_remote_host(remote_host):
+        return jsonify({"status": "error", "message": "Nome do host ou IP remoto não fornecido."}), 400
+    if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
+        message = "Credenciais inválidas. Informe usuário e senha no frontend."
+        log_action("Limpar Fila Robusta", remote_host, "Falha", message)
+        return jsonify({"status": "error", "message": message}), 500
+
+    try:
+        pythoncom.CoInitialize()
+        conn = connect_wmi(remote_host, auth_username, auth_password, domain)
+        before_jobs = []
+        try:
+            for j in conn.Win32_PrintJob():
+                before_jobs.append(1)
+        except Exception:
+            pass
+
+        ps = []
+        ps.append("$printers = Get-Printer -ErrorAction SilentlyContinue;")
+        ps.append("$resumed = 0; $removed = 0;")
+        ps.append("foreach ($pr in $printers) { $n = $pr.Name; $jobs = Get-PrintJob -PrinterName $n -ErrorAction SilentlyContinue; foreach ($j in $jobs) { $js = ([string]$j.JobStatus + ' ' + [string]$j.Status).ToLower(); if ($js -match 'paused|pausado') { try { Resume-PrintJob -PrinterName $n -ID $j.ID -ErrorAction SilentlyContinue; $resumed++ } catch {} } try { Remove-PrintJob -PrinterName $n -ID $j.ID -ErrorAction SilentlyContinue; $removed++ } catch {} } }")
+        ps.append("$remaining = 0; foreach ($pr in $printers) { $remaining += (Get-PrintJob -PrinterName $pr.Name -ErrorAction SilentlyContinue).Count }")
+        ps.append("Write-Output ('Resumed=' + $resumed + ';Removed=' + $removed + ';Remaining=' + $remaining)")
+        cmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command \"" + " ".join(ps) + "\""
+
+        if is_local_host(remote_host):
+            try:
+                subprocess.run(["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", cmd], check=False)
+            except Exception:
+                pass
+        else:
+            try:
+                conn.Win32_Process.Create(CommandLine=cmd)
+            except Exception:
+                pass
+
+        time.sleep(2)
+
+        after_jobs = []
+        try:
+            for j in conn.Win32_PrintJob():
+                after_jobs.append(1)
+        except Exception:
+            pass
+
+        message = "Limpeza robusta executada."
+        log_action("Limpar Fila Robusta", remote_host, "Sucesso", message)
+        return jsonify({"status": "success", "message": message, "before_count": len(before_jobs), "after_count": len(after_jobs)})
+    except Exception as e:
+        message = f"Erro ao executar limpeza robusta em {remote_host}. {format_wmi_error(e)}"
+        log_action("Limpar Fila Robusta", remote_host, "Falha", message)
+        return jsonify({"status": "error", "message": message}), 500
+    finally:
+        pythoncom.CoUninitialize()
+
 @app.route('/test_wmi', methods=['POST'])
 def test_wmi():
     ip = client_ip()
@@ -932,7 +971,7 @@ def get_services_status():
     auth_username = frontend_username
     auth_password = frontend_password
 
-    print(f"DEBUG: Credenciais WMI: Usuário={auth_username}, Senha={'*' * len(auth_password) if auth_password else 'N/A'}")
+    print(f"DEBUG: Credenciais WMI: Usuário={auth_username}, Senha=***")
     if not remote_host:
         print("DEBUG: Host remoto não fornecido. Tentando obter status de serviços locais.")
     elif not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password) or (remote_host and not validate_remote_host(remote_host)):
