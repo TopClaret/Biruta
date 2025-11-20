@@ -1,0 +1,17 @@
+csrf:
+  enforce_origin: false
+  monitor_only: true
+csp:
+  override_fallback: true
+  policy: "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+rate_limit:
+  enabled: true
+  requests_per_minute: 120
+alerts:
+  enabled: false
+  webhook_url: ""
+metrics:
+  enabled: true
+  path: "/metrics"
+redaction:
+  enable_token_redaction: true

@@ -249,30 +249,12 @@
             color: #333;
         }
 
-        .status-running {
-            color: #28a745; /* Verde */
-            font-weight: bold;
-        }
-
-        .status-stopped {
-            color: #dc3545; /* Vermelho */
-            font-weight: bold;
-        }
-
-        .status-paused {
-            color: #ffc107; /* Amarelo/Laranja */
-            font-weight: bold;
-        }
-
-        .status-pending, .status-start_pending, .status-stop_pending {
-            color: #007bff; /* Azul */
-            font-weight: bold;
-        }
-
-        .status-not_found, .status-error {
-            color: #6c757d; /* Cinza */
-            font-weight: bold;
-        }
+        .status-running { color: #00FF00; font-weight: 700; }
+        .status-restarting, .status-pending, .status-start_pending, .status-stop_pending { color: #FFFF00; font-weight: 700; }
+        .status-stopped { color: #FF0000; font-weight: 700; }
+        .status-paused { color: #FFFF00; font-weight: 700; }
+        .status-not_found, .status-error { color: #9ca3af; font-weight: 700; }
+        .service-card span { transition: color .25s ease; }
 
         #toastOverlay {
             position: fixed;
@@ -403,7 +385,10 @@
         button:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 10px 20px rgba(37,99,235,0.35); }
         button:disabled { background: #6b7280; cursor:not-allowed; box-shadow:none; transform:none; }
         .button-indent { margin-left: 0; }
-        .btn-row { display:flex; align-items:center; gap:10px; margin-left: 0; }
+        .btn-row { display:flex; align-items:center; gap:10px; margin-left: 0; flex-wrap: wrap; }
+        .hint { color:#9ca3af; font-size: 0.8em; }
+        .field-error { border-color:#ef4444 !important; }
+        .error-text { color:#ef4444; font-size:0.85em; }
         
         #message { margin-top: 18px; font-weight: 600; color: #e5e7eb; text-align: left; }
         .printer-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; margin-top:16px; padding: 8px; background: #ffffff; border-radius: 12px; border:1px solid #e5e7eb; }
@@ -412,16 +397,36 @@
         .printer-card h4 { color: #34495e; margin:0 0 10px 0; font-size:0.95em; border-bottom: 1px dashed rgba(0,0,0,0.08); padding-bottom:6px; }
         .printer-card p { margin: 6px 0; color: #555; font-size: 0.9em; }
         .service-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-top:14px; padding: 8px; background: #111827; border-radius: 12px; border:1px solid rgba(255,255,255,0.06); }
+        .service-grid.vertical { grid-template-columns: 1fr; }
+        .status-layout { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
+        .printer-summary { background:#111827; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:12px; }
+        .printer-summary h3 { margin:0 0 8px 0; color:#e5e7eb; font-size:1em; }
+        .printer-summary-list { display:grid; grid-template-columns: 1fr; gap:12px; }
+        .printer-summary-card { background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; }
+        .printer-summary-card h4 { margin:0 0 6px 0; color:#e5e7eb; font-size:0.95em; }
+        .printer-summary-card .jobs { color:#9ca3af; font-weight:600; }
         .service-card { background: #1f2937; border:1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); text-align:left; transition: transform .2s ease, box-shadow .2s ease; }
         .service-card:hover { transform: translateY(-2px); }
         .service-card h4 { color: #e5e7eb; margin:0 0 8px 0; font-size:1em; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom:4px; }
         .service-card p { margin: 4px 0; color: #9ca3af; font-size: 0.85em; }
-        .status-running { color: #22c55e; font-weight: 700; }
-        .status-stopped { color: #ef4444; font-weight: 700; }
-        .status-paused { color: #f59e0b; font-weight: 700; }
-        .status-pending, .status-start_pending, .status-stop_pending { color: #3b82f6; font-weight: 700; }
+        .status-running { color: #00FF00; font-weight: 700; }
+        .status-restarting, .status-pending, .status-start_pending, .status-stop_pending { color: #FFFF00; font-weight: 700; }
+        .status-stopped { color: #FF0000; font-weight: 700; }
+        .status-paused { color: #FFFF00; font-weight: 700; }
         .status-not_found, .status-error { color: #9ca3af; font-weight: 700; }
         #toastOverlay { background: rgba(0, 0, 0, 0.45); }
+        .overlay-visible { display:flex; }
+        .btn-danger { background:#e74c3c; }
+        .service-progress { background:#eee; height:6px; border-radius:3px; }
+        .service-progress-bar { height:6px; border-radius:3px; transition: background-color .25s ease, width .25s ease; }
+        .bar-running { width:100%; background:#00FF00; }
+        .bar-restarting, .bar-start_pending { width:75%; background:#FFFF00; }
+        .bar-stopped { width:50%; background:#FF0000; }
+        .bar-stop_pending { width:25%; background:#FFFF00; }
+        .bar-error { width:0%; background:#FF0000; }
+        .toast-icon-success { background:#22c55e; }
+        .toast-icon-error { background:#ef4444; }
+        .hidden { display:none; }
         #toast { background: #1f2937; border:1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); max-width: 520px; }
         .toast-success { border-left: 6px solid #22c55e; }
         .toast-error { border-left: 6px solid #ef4444; }
@@ -464,7 +469,7 @@
             </div>
             <div class="input-group">
                 <label for="domain">Domínio:</label>
-                <input type="text" id="domain" placeholder="Domínio (opcional)">
+                <input type="text" id="domain" placeholder="Domínio (opcional)" title="Ex.: VILLEFORT. Se usar &quot;DOMÍNIO\\usuário&quot;, o domínio é preenchido automaticamente.">
             </div>
             
             <button id="connectButton" class="button-indent">Conectar</button>
@@ -483,13 +488,26 @@
                         <label for="serviceFilter">Filtro de Serviços:</label>
                         <input type="text" id="serviceFilter" placeholder="Filtrar serviços...">
                     </div>
-                    <button id="restartButton" class="button-indent">Reiniciar Serviços</button>
-                    <div id="servicesOutput" class="service-grid"></div>
+                    <div class="btn-row">
+                        <button id="robustClearButtonServices" class="btn-danger">🧹 Limpar Fila (Robusto)</button>
+                        <button id="restartButton" class="button-indent">Reiniciar Serviços</button>
+                    </div>
+                    <div class="status-layout">
+                        <div id="servicesOutput" class="service-grid vertical hidden"></div>
+                        <aside class="printer-summary">
+                            <h3>Impressoras (Resumo)</h3>
+                            <div id="printersSummary" class="printer-summary-list"></div>
+                        </aside>
+                        <aside class="printer-summary">
+                            <h3>Histórico de Status</h3>
+                            <div id="statusHistory" class="printer-summary-list"></div>
+                        </aside>
+                    </div>
                 </div>
                 <div id="printers" class="tab-pane">
                     <div class="btn-row">
                         <button id="listPrintersButton">Listar Impressoras</button>
-                        <button id="robustClearButton" style="background:#e74c3c;">🧹 Limpar Fila (Robusto)</button>
+                        <button id="robustClearButton" class="btn-danger">🧹 Limpar Fila (Robusto)</button>
                     </div>
                     <div id="printersOutput" class="printer-grid"></div>
                 </div>
@@ -501,10 +519,44 @@
     </div>
 
     <script nonce="{{ csp_nonce }}">
+        function normalizeDomain(d) { return (d || '').trim().toUpperCase(); }
+        function extractDomainFromUsername(u) {
+            const s = String(u || '');
+            if (s.includes('\\')) {
+                const parts = s.split('\\');
+                if (parts[0] && parts[1]) return { domain: parts[0].toUpperCase(), user: parts[1] };
+            }
+            return { domain: '', user: s };
+        }
+        function composeCredentials(usernameInput, domainInput) {
+            const extracted = extractDomainFromUsername(usernameInput);
+            const domainNorm = normalizeDomain(domainInput || extracted.domain);
+            const userNoDomain = extracted.user;
+            const userWithDomain = domainNorm ? `${domainNorm}\\${userNoDomain}` : userNoDomain;
+            return { domain: domainNorm, userNoDomain, userWithDomain };
+        }
+        function isValidHost(h) {
+            const s = String(h || '').trim();
+            const ip = /^(\d{1,3}\.){3}\d{1,3}$/;
+            const host = /^[a-zA-Z0-9._-]{3,}$/;
+            return ip.test(s) || host.test(s);
+        }
+        function validateConnectionInputs(remoteHost, usernameInput, password, domainInput) {
+            const res = { ok: true, message: '' };
+            const remoteEl = document.getElementById('remoteHost');
+            const userEl = document.getElementById('username');
+            const passEl = document.getElementById('password');
+            [remoteEl, userEl, passEl].forEach(el => el.classList.remove('field-error'));
+            if (!isValidHost(remoteHost)) { res.ok = false; res.message = 'IP/Máquina inválido.'; remoteEl.classList.add('field-error'); return res; }
+            if (!String(usernameInput || '').trim()) { res.ok = false; res.message = 'Informe o usuário.'; userEl.classList.add('field-error'); return res; }
+            if (!String(password || '').trim()) { res.ok = false; res.message = 'Informe a senha.'; passEl.classList.add('field-error'); return res; }
+            return res;
+        }
         let printerUpdateInterval = null;
         let serviceStatusInterval = null;
         let statusEventSource = null;
         let sseReconnectTimer = null;
+        let monitorStatusInterval = null;
         let serviceMonitorToken = null;
         function getCookie(name) {
             const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -678,6 +730,86 @@
             }
         });
 
+        document.getElementById('robustClearButtonServices').addEventListener('click', async () => {
+            const message = document.getElementById('message');
+            const remoteHost = document.getElementById('remoteHost').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const domain = document.getElementById('domain').value.trim();
+            if (!remoteHost || !username || !password) {
+                showToast('error', 'Dados incompletos', 'Informe IP, usuário e senha.');
+                return;
+            }
+            try {
+                message.textContent = 'Executando limpeza robusta da fila...';
+                message.className = '';
+                const resp = await fetch('/clear_print_jobs_robust', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+                    body: JSON.stringify({ remote_host: remoteHost, username, password, domain })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    const before = data.before_count ?? 0;
+                    const after = data.after_count ?? 0;
+                    showToast('success', 'Fila limpa (robusto)', `Antes: ${before} | Depois: ${after}`);
+                    await new Promise(r => setTimeout(r, 1500));
+                    await fetchAndRenderPrintersSummary();
+                } else {
+                    showToast('error', 'Erro ao limpar fila', data.message || 'Erro desconhecido');
+                }
+            } catch (e) {
+                showToast('error', 'Falha de conexão', 'Não foi possível conectar ao servidor.');
+            }
+        });
+
+        // Fallback: se o botão não estiver presente por cache de template, cria dinamicamente
+        document.addEventListener('DOMContentLoaded', () => {
+            let btn = document.getElementById('robustClearButtonServices');
+            if (!btn) {
+                const restartBtn = document.getElementById('restartButton');
+                if (restartBtn && restartBtn.parentElement) {
+                    btn = document.createElement('button');
+                    btn.id = 'robustClearButtonServices';
+                    btn.className = 'btn-danger';
+                    btn.textContent = '🧹 Limpar Fila (Robusto)';
+                    restartBtn.parentElement.appendChild(btn);
+                    btn.addEventListener('click', async () => {
+                        const message = document.getElementById('message');
+                        const remoteHost = document.getElementById('remoteHost').value.trim();
+                        const username = document.getElementById('username').value.trim();
+                        const password = document.getElementById('password').value;
+                        const domain = document.getElementById('domain').value.trim();
+                        if (!remoteHost || !username || !password) {
+                            showToast('error', 'Dados incompletos', 'Informe IP, usuário e senha.');
+                            return;
+                        }
+                        try {
+                            message.textContent = 'Executando limpeza robusta da fila...';
+                            message.className = '';
+                            const resp = await fetch('/clear_print_jobs_robust', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+                                body: JSON.stringify({ remote_host: remoteHost, username, password, domain })
+                            });
+                            const data = await resp.json();
+                            if (resp.ok) {
+                                const before = data.before_count ?? 0;
+                                const after = data.after_count ?? 0;
+                                showToast('success', 'Fila limpa (robusto)', `Antes: ${before} | Depois: ${after}`);
+                                await new Promise(r => setTimeout(r, 1500));
+                                await fetchAndRenderPrintersSummary();
+                            } else {
+                                showToast('error', 'Erro ao limpar fila', data.message || 'Erro desconhecido');
+                            }
+                        } catch (e) {
+                            showToast('error', 'Falha de conexão', 'Não foi possível conectar ao servidor.');
+                        }
+                    });
+                }
+            }
+        });
+
         document.getElementById('listPrintersButton').addEventListener('click', () => {
             // Limpa qualquer intervalo existente antes de iniciar um novo
             if (printerUpdateInterval) {
@@ -689,6 +821,16 @@
         
 
         // Função para buscar e renderizar o status dos serviços
+        function normalizeStatus(status) {
+            const s = String(status || '').toLowerCase();
+            if (s.includes('running')) return { text: 'Rodando', cls: 'status-running', bar: 'bar-running' };
+            if (s.includes('start') && s.includes('pending')) return { text: 'Reiniciando', cls: 'status-restarting', bar: 'bar-restarting' };
+            if (s.includes('stop') && s.includes('pending')) return { text: 'Reiniciando', cls: 'status-restarting', bar: 'bar-stop_pending' };
+            if (s.includes('stopped')) return { text: 'Parado', cls: 'status-stopped', bar: 'bar-stopped' };
+            if (s.includes('paused')) return { text: 'Reiniciando', cls: 'status-paused', bar: 'bar-restarting' };
+            return { text: status || 'Desconhecido', cls: 'status-error', bar: 'bar-error' };
+        }
+
         async function fetchAndRenderServiceStatus() {
             const servicesOutput = document.getElementById('servicesOutput');
             const remoteHost = document.getElementById('remoteHost').value;
@@ -713,10 +855,13 @@
                         data.services.forEach(service => {
                             const serviceCard = document.createElement('div');
                             serviceCard.className = 'service-card';
-                            const statusClass = `status-${service.status.toLowerCase().replace(/ /g, '_')}`;
+                            const norm = normalizeStatus(service.status);
                             serviceCard.innerHTML = `
                                 <h4>${service.name}</h4>
-                                <p>Status: <span class="${statusClass}">${service.status}</span></p>
+                                <p>Status: <span class="${norm.cls}">${norm.text}</span></p>
+                                <div class="service-progress">
+                                    <div class="service-progress-bar ${norm.bar}"></div>
+                                </div>
                             `;
                             servicesOutput.appendChild(serviceCard);
                         });
@@ -740,14 +885,14 @@
                 services.forEach(service => {
                     const serviceCard = document.createElement('div');
                     serviceCard.className = 'service-card';
-                    const statusClass = `status-${service.status.toLowerCase().replace(/ /g, '_')}`;
-                    const progress = statusToProgress(service.status);
-                    const color = statusToColor(service.status);
+                    const norm = normalizeStatus(service.status);
+                    const statusClass = norm.cls;
+                    const barClass = norm.bar;
                     serviceCard.innerHTML = `
                                 <h4>${service.name}</h4>
-                                <p>Status: <span class="${statusClass}">${service.status}</span></p>
-                                <div class="service-progress" style="background:#eee;height:6px;border-radius:3px;">
-                                    <div class="service-progress-bar" style="width:${progress}%;height:6px;background:${color};border-radius:3px;"></div>
+                                <p>Status: <span class="${statusClass}">${normalizeStatus(service.status).text}</span></p>
+                                <div class="service-progress">
+                                    <div class="service-progress-bar ${barClass}"></div>
                                 </div>
                             `;
                     servicesOutput.appendChild(serviceCard);
@@ -756,26 +901,7 @@
                 servicesOutput.innerHTML = '<p>Nenhum serviço encontrado ou monitorado.</p>';
             }
         }
-
-        function statusToProgress(status) {
-            const s = String(status).toLowerCase();
-            if (s.includes('running')) return 100;
-            if (s.includes('start') && s.includes('pending')) return 75;
-            if (s.includes('stopped')) return 50;
-            if (s.includes('stop') && s.includes('pending')) return 25;
-            if (s.includes('error')) return 0;
-            return 0;
-        }
-
-        function statusToColor(status) {
-            const s = String(status).toLowerCase();
-            if (s.includes('running')) return '#28a745';
-            if (s.includes('start') && s.includes('pending')) return '#ffc107';
-            if (s.includes('stopped')) return '#6c757d';
-            if (s.includes('stop') && s.includes('pending')) return '#ffc107';
-            if (s.includes('error')) return '#dc3545';
-            return '#6c757d';
-        }
+        
 
         async function startServiceMonitorIfNeeded() {
             const remoteHost = document.getElementById('remoteHost').value.trim();
@@ -801,40 +927,55 @@
 
         async function connectServiceStatusEvents() {
             if (statusEventSource) return;
-            let url = '/events/services_status';
             if (!serviceMonitorToken) {
-                await startServiceMonitorIfNeeded();
+                const tok = await startServiceMonitorIfNeeded();
+                if (!tok) return;
             }
-            if (serviceMonitorToken) {
-                url = `/events/services_status_by_token?token=${serviceMonitorToken}`;
-            }
+            const url = `/events/services_status_by_token?token=${serviceMonitorToken}`;
             statusEventSource = new EventSource(url);
             statusEventSource.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
+                    if (data && data.type === 'error') {
+                        showToast('error', 'Monitoramento', 'Falha na comunicação do monitor. Iniciando fallback.');
+                        if (!serviceStatusInterval) {
+                            serviceStatusInterval = setInterval(fetchAndRenderServiceStatus, 5000);
+                        }
+                        return;
+                    }
+                    if (serviceStatusInterval) { clearInterval(serviceStatusInterval); serviceStatusInterval = null; }
                     if (data && data.all && data.all.length) {
                         renderServiceList(data.all);
                     }
                     if (data && data.changed && data.changed.length > 0) {
                         const now = new Date();
                         const info = data.changed.map(c => `${c.service}: ${c.status} (${now.toLocaleString()})`).join('<br>');
+                        const hist = document.getElementById('statusHistory');
+                        const entry = document.createElement('div');
+                        entry.className = 'printer-summary-card';
+                        entry.innerHTML = info;
+                        hist.prepend(entry);
                         data.changed.forEach(c => {
                             const cards = document.querySelectorAll('#servicesOutput .service-card');
                             cards.forEach(card => {
                                 const name = card.querySelector('h4').textContent;
                                 if (name === c.service) {
-                                    const span = card.querySelector('span');
-                                    const cls = `status-${String(c.status).toLowerCase().replace(/ /g, '_')}`;
-                                    span.textContent = c.status;
-                                    span.className = cls;
-                                    const bar = card.querySelector('.service-progress-bar');
-                                    if (bar) {
-                                        bar.style.width = statusToProgress(c.status) + '%';
-                                        bar.style.background = statusToColor(c.status);
-                                    }
+                                const span = card.querySelector('span');
+                                const norm = normalizeStatus(c.status);
+                                span.textContent = norm.text;
+                                span.className = norm.cls;
+                                const bar = card.querySelector('.service-progress-bar');
+                                if (bar) {
+                                    bar.className = `service-progress-bar ${norm.bar}`;
+                                }
                                 }
                             });
                         });
+                        const serverTs = data.ts ? new Date(data.ts).getTime() : Date.now();
+                        const latencyMs = Date.now() - serverTs;
+                        if (latencyMs > 2000) {
+                            showToast('error', 'Latência Alta', `Atraso de ~${Math.round(latencyMs)}ms na atualização.`);
+                        }
                     }
                 } catch (_) {}
             };
@@ -849,6 +990,9 @@
                         connectServiceStatusEvents();
                     }, 2000);
                 }
+                if (!serviceStatusInterval) {
+                    serviceStatusInterval = setInterval(fetchAndRenderServiceStatus, 5000);
+                }
             };
         }
 
@@ -861,11 +1005,15 @@
                 clearTimeout(sseReconnectTimer);
                 sseReconnectTimer = null;
             }
+            if (monitorStatusInterval) {
+                clearInterval(monitorStatusInterval);
+                monitorStatusInterval = null;
+            }
         }
 
         // Chama a função de status dos serviços ao carregar a página
         document.addEventListener('DOMContentLoaded', () => {
-            connectServiceStatusEvents();
+            // Não conectar SSE automaticamente; somente após conexão
         });
 
         // Adiciona event listeners para os botões das abas
@@ -888,10 +1036,13 @@
             // Lógica específica para cada aba ao ser ativada
             if (tabId === 'services') {
                 connectServiceStatusEvents();
-                if (serviceStatusInterval) {
-                    clearInterval(serviceStatusInterval);
-                    serviceStatusInterval = null;
+                if (!serviceStatusInterval) {
+                    serviceStatusInterval = setInterval(fetchAndRenderServiceStatus, 5000);
                 }
+                if (!monitorStatusInterval) {
+                    monitorStatusInterval = setInterval(updateMonitorStatus, 5000);
+                }
+                fetchAndRenderStatusHistory();
             } else {
                 disconnectServiceStatusEvents();
             }
@@ -916,10 +1067,10 @@
         function showToast(type, title, info, autoHideMs = 5000) {
             toast.className = type === 'success' ? 'toast-success' : 'toast-error';
             toastIcon.textContent = type === 'success' ? '✓' : '!';
-            toastIcon.style.background = type === 'success' ? '#28a745' : '#dc3545';
+            toastIcon.className = type === 'success' ? 'toast-icon toast-icon-success' : 'toast-icon toast-icon-error';
             toastTitle.textContent = title;
             toastInfo.innerHTML = info;
-            toastOverlay.style.display = 'flex';
+            toastOverlay.classList.add('overlay-visible');
             if (toastTimer) {
                 clearTimeout(toastTimer);
             }
@@ -929,7 +1080,7 @@
         }
 
         function hideToast() {
-            toastOverlay.style.display = 'none';
+            toastOverlay.classList.remove('overlay-visible');
             if (toastTimer) {
                 clearTimeout(toastTimer);
                 toastTimer = null;
@@ -945,8 +1096,14 @@
             const domain = document.getElementById('domain').value.trim();
             const connectBtn = document.getElementById('connectButton');
             const messageElement = document.getElementById('message');
-
-            const composedUser = domain ? `${domain}\\${usernameInput}` : usernameInput;
+            const creds = composeCredentials(usernameInput, domain);
+            if (creds.domain && !domain) {
+                const domEl = document.getElementById('domain');
+                domEl.value = creds.domain;
+            }
+            const v = validateConnectionInputs(remoteHost, creds.userNoDomain, password, creds.domain);
+            if (!v.ok) { messageElement.textContent = v.message; messageElement.className = 'error'; return; }
+            const composedUser = creds.userWithDomain;
 
             if (!remoteHost || !usernameInput || !password) {
                 messageElement.textContent = 'Informe IP, usuário e senha.';
@@ -971,6 +1128,10 @@
                     messageElement.textContent = data.message;
                     messageElement.className = 'success';
                     fetchAndRenderServiceStatus();
+                    fetchAndRenderPrintersSummary();
+                    await startServiceMonitorIfNeeded();
+                    connectServiceStatusEvents();
+                    updateMonitorStatus();
                 } else {
                     const errMsg = data && data.message ? data.message : 'Falha ao conectar.';
                     messageElement.textContent = errMsg;
@@ -993,13 +1154,135 @@
             serviceCards.forEach(card => {
                 const serviceName = card.querySelector('h4').textContent.toLowerCase();
                 if (serviceName.includes(filterText)) {
-                    card.style.display = 'block';
+                    card.classList.remove('hidden');
                 } else {
-                    card.style.display = 'none';
+                    card.classList.add('hidden');
                 }
             });
         });
 
+    </script>
+    <script nonce="{{ csp_nonce }}">
+        async function updateMonitorStatus() {
+            const indicator = document.getElementById('monitorStatus');
+            const token = (typeof serviceMonitorToken !== 'undefined') ? serviceMonitorToken : null;
+            if (!indicator) return;
+            if (!token) {
+                indicator.innerHTML = '<div>Monitor: <span class="status-stopped">Inativo</span></div>';
+                return;
+            }
+            try {
+                const resp = await fetch(`/monitor_status?token=${token}`);
+                const data = await resp.json();
+                if (resp.ok && data.status === 'success') {
+                    const running = !!data.running;
+                    const alive = !!data.alive;
+                    const runCls = running ? 'status-running' : 'status-stopped';
+                    const aliveCls = alive ? 'status-running' : 'status-stopped';
+                    indicator.innerHTML = `<div>Monitor: <span class="${runCls}">${running ? 'Ativo' : 'Inativo'}</span></div><div>Thread: <span class="${aliveCls}">${alive ? 'Viva' : 'Parada'}</span></div>`;
+                } else {
+                    indicator.innerHTML = '<div>Monitor: <span class="status-stopped">Erro</span></div>';
+                }
+            } catch (_) {
+                indicator.innerHTML = '<div>Monitor: <span class="status-stopped">Falha</span></div>';
+            }
+        }
+    </script>
+    <script nonce="{{ csp_nonce }}">
+        function diagnoseWmiMessage(msg) {
+            const m = String(msg || '').toLowerCase();
+            if (!m) return null;
+            if (m.includes('acesso negado') || m.includes('access is denied') || m.includes('-2147024891')) {
+                return 'Verifique: Domínio correto (ex.: VILLEFORT), Remote Enable em root\\cimv2, permissões DCOM (Remote Access/Launch/Activation) e regra de firewall WMI-In. Para conta local admin, aplique LocalAccountTokenFilterPolicy=1.';
+            }
+            if (m.includes('rpc server is unavailable') || m.includes('-2147023174')) {
+                return 'RPC indisponível: libere porta 135/TCP e regras relacionadas (DCOM/WMI), verifique conectividade e serviço RPC no host.';
+            }
+            if (m.includes('parâmetro inválido') || m.includes('invalid parameter') || m.includes('-2147217400')) {
+                return 'Parâmetro inválido: confirme formato de credenciais (DOMÍNIO\\usuário) e que o campo Domínio está correto (ex.: VILLEFORT).';
+            }
+            return null;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const msgEl = document.getElementById('message');
+            const observer = new MutationObserver(() => {
+                if (msgEl.classList.contains('error')) {
+                    const hint = diagnoseWmiMessage(msgEl.textContent || '');
+                    if (hint) {
+                        showToast('error', 'Diagnóstico WMI', hint, 7000);
+                    }
+                }
+            });
+            observer.observe(msgEl, { characterData: false, childList: true, attributes: true, attributeFilter: ['class'] });
+        });
+    </script>
+    <script nonce="{{ csp_nonce }}">
+        async function fetchAndRenderPrintersSummary() {
+            const messageEl = document.getElementById('message');
+            const remoteHost = document.getElementById('remoteHost').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            if (!messageEl.classList.contains('success')) return;
+            if (!remoteHost || !username || !password) return;
+            try {
+                const resp = await fetch('/list_printers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+                    body: JSON.stringify({ remote_host: remoteHost, username, password })
+                });
+                const data = await resp.json();
+                const container = document.getElementById('printersSummary');
+                container.innerHTML = '';
+                if (resp.ok && Array.isArray(data.printers)) {
+                    data.printers.forEach(p => {
+                        const card = document.createElement('div');
+                        card.className = 'printer-summary-card';
+                        const h4 = document.createElement('h4');
+                        h4.textContent = p.Name || 'Impressora';
+                        const jobs = document.createElement('div');
+                        jobs.className = 'jobs';
+                        jobs.textContent = `Trabalhos na fila: ${typeof p.JobCount === 'number' ? p.JobCount : (p.JobCount || 0)}`;
+                        card.appendChild(h4);
+                        card.appendChild(jobs);
+                        container.appendChild(card);
+                    });
+                }
+            } catch (_) {}
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const messageEl = document.getElementById('message');
+            const servicesOutput = document.getElementById('servicesOutput');
+            const observer = new MutationObserver(() => {
+                if (messageEl.classList.contains('success')) {
+                    servicesOutput.classList.remove('hidden');
+                }
+            });
+            observer.observe(messageEl, { attributes: true, attributeFilter: ['class'] });
+        });
+    </script>
+    <script nonce="{{ csp_nonce }}">
+        async function fetchAndRenderStatusHistory() {
+            const messageEl = document.getElementById('message');
+            if (!messageEl.classList.contains('success')) return;
+            const remoteHost = document.getElementById('remoteHost').value.trim();
+            if (!remoteHost) return;
+            try {
+                const resp = await fetch(`/services_status_history?host=${encodeURIComponent(remoteHost)}&limit=100`);
+                const data = await resp.json();
+                const container = document.getElementById('statusHistory');
+                container.innerHTML = '';
+                if (resp.ok && Array.isArray(data.items)) {
+                    data.items.forEach(item => {
+                        const card = document.createElement('div');
+                        card.className = 'printer-summary-card';
+                        const norm = normalizeStatus(item.to);
+                        card.innerHTML = `${item.service}: <span class="${norm.cls}">${norm.text}</span> (${new Date(item.ts).toLocaleString()})`;
+                        container.prepend(card);
+                    });
+                }
+            } catch (_) {}
+        }
     </script>
 </body>
 </html>

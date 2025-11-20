@@ -44,7 +44,7 @@ SECURITY_HEADERS = {
 
 def build_csp(nonce=None):
     if nonce:
-        return " ".join([
+        return "; ".join([
             "default-src 'self'",
             f"script-src 'self' 'nonce-{nonce}'",
             f"style-src 'self' 'nonce-{nonce}'",
@@ -55,7 +55,7 @@ def build_csp(nonce=None):
             "form-action 'self'",
         ])
     else:
-        return " ".join([
+        return "; ".join([
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline'",
@@ -68,7 +68,12 @@ def build_csp(nonce=None):
 
 @app.after_request
 def set_security_headers(resp):
-    resp.headers["Content-Security-Policy"] = build_csp(getattr(g, 'csp_nonce', None))
+    policy = build_csp(getattr(g, 'csp_nonce', None))
+    resp.headers["Content-Security-Policy"] = policy
+    try:
+        log_action("Segurança", "CSP", "Aplicado", policy)
+    except Exception:
+        pass
     resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     for k, v in SECURITY_HEADERS.items():
         resp.headers[k] = v
@@ -165,7 +170,14 @@ def is_local_host(host):
     except Exception:
         return False
 
+    # nao mecher ate 198
 def connect_wmi(remote_host, user, password, domain=None):
+    _safe_host = (remote_host or '').strip()
+    if not _safe_host:
+        raise ValueError("Host remoto não informado.")
+    if not is_local_host(_safe_host) and not validate_remote_host(_safe_host):
+        raise ValueError("Host remoto inválido.")
+    remote_host = _safe_host
     if is_local_host(remote_host):
         conn = wmi.WMI(namespace='root\\cimv2')
         track_wmi_conn(conn)
@@ -173,26 +185,32 @@ def connect_wmi(remote_host, user, password, domain=None):
     locator = win32com.client.Dispatch("WbemScripting.SWbemLocator")
     locator.Security_.AuthenticationLevel = 6
     _user = user or ""
-    _domain = domain
+    _domain = (domain or "").strip().upper() or None
     if not _domain and isinstance(_user, str) and "\\" in _user:
         parts = _user.split("\\", 1)
         if len(parts) == 2 and parts[0] and parts[1]:
-            _domain, _user = parts[0], parts[1]
-    # Primeiro tenta com a assinatura básica (sem authority)
+            _domain, _user = parts[0].strip().upper(), parts[1]
+    if not _user or not password:
+        raise ValueError("Credenciais ausentes para conexão WMI remota.")
+    authority = f"NTLMDOMAIN:{_domain}" if _domain else None
     try:
-        services = locator.ConnectServer(remote_host, "root\\cimv2", _user, password)
-    except pywintypes.com_error as ce:
-        # Se houver domínio, tenta novamente com authority NTLM em caixa alta
-        if _domain:
-            authority = f"NTLMDOMAIN:{_domain}"
+        if authority:
             services = locator.ConnectServer(remote_host, "root\\cimv2", _user, password, None, authority)
         else:
+            services = locator.ConnectServer(remote_host, "root\\cimv2", _user, password)
+    except pywintypes.com_error as ce:
+        if authority:
+            services = locator.ConnectServer(remote_host, "root\\cimv2", _user, password)
+        else:
             raise ce
+    services.Security_.AuthenticationLevel = 6
     services.Security_.ImpersonationLevel = 3
     conn = wmi.WMI(wmi=services)
     track_wmi_conn(conn)
+    _user = None
+    password = None
     return conn
-
+     
 def format_wmi_error(e):
     s = str(e)
     if ("-2147024891" in s) or ("Acesso negado" in s) or ("Access is denied" in s):
@@ -202,6 +220,7 @@ def format_wmi_error(e):
     if ("-2147023174" in s) or ("RPC server is unavailable" in s):
         return "Servidor RPC indisponível. Verifique conectividade de rede e porta 135, além das regras de firewall (WMI/DCOM)."
     return s
+    # nao mecher ate aqui
 
 # Define o caminho para o script PowerShell
 # Certifique-se de que este caminho está correto no seu sistema
@@ -209,13 +228,13 @@ POWERSHELL_RESTART_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "restar
 
 # Lista de serviços padrão para reinício sequencial
 DEFAULT_SERVICES_TO_RESTART = [
+    "Spooler",
     "nddPrint.Agent.Watcher",
     "nddPrint.Agent.Sender",
     "nddPrint.Agent.Listener",
     "nddPrint.Agent.HttpServer",
     "nddPrint.Agent.Guardian",
-    "DCSServer",
-    "Spooler"
+    "DCSServer"
 ]
 CRITICAL_SERVICES = {
     "Wininit", "Winlogon", "LSM", "SessionEnv", "TermService", "PlugPlay", "EventLog",
@@ -298,6 +317,9 @@ def service_status_monitor_for(token, remote_host, auth_username, auth_password,
                         STATUS_HISTORY.append({"service": s["name"], "from": prev, "to": curr, "ts": ts, "host": remote_host or "localhost"})
                         log_action("Status", remote_host or "localhost", "Mudança", f"{s['name']} {prev}->{curr}")
                         changed.append({"service": s["name"], "status": curr, "start_mode": s.get("start_mode"), "ts": ts})
+                
+                # Sempre enviar atualização completa, mesmo sem mudanças
+                # Isso garante que o frontend receba atualizações periódicas
                 payload = {"type": "services_status", "changed": changed, "all": statuses, "ts": ts}
                 try:
                     q.put_nowait(payload)
@@ -386,6 +408,9 @@ def start_service_monitor():
     domain = SECURITY.sanitize_string(data.get('domain'))
     if remote_host and not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "IP/Host remoto inválido."}), 400
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
     if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
         return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
 
@@ -393,7 +418,7 @@ def start_service_monitor():
     q = queue.Queue(maxsize=200)
     SESSIONS[token] = {"queue": q, "host": remote_host}
     SESSION_MONITORS[token] = {"thread": None, "running": True}
-    t = threading.Thread(target=service_status_monitor_for, args=(token, remote_host, auth_username, auth_password, domain, 0.5), daemon=True)
+    t = threading.Thread(target=service_status_monitor_for, args=(token, remote_host, auth_username, auth_password, domain, 0.25), daemon=True)
     SESSION_MONITORS[token]["thread"] = t
     t.start()
     log_action("SSE", remote_host or "localhost", "Iniciado", f"Monitor de serviços iniciado para token {token}")
@@ -556,6 +581,9 @@ def restart_service():
     frontend_username = SECURITY.sanitize_string(data.get('username'))
     frontend_password = data.get('password')
     domain = SECURITY.sanitize_string(data.get('domain'))
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
     if not service_name:
         message = "Nome do serviço não fornecido para reinício."
@@ -619,6 +647,9 @@ def restart_multiple_services():
     frontend_password = data.get('password')
     services_to_restart = data.get('service_names', DEFAULT_SERVICES_TO_RESTART)
     domain = SECURITY.sanitize_string(data.get('domain'))
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
     auth_username = frontend_username
     auth_password = frontend_password
@@ -673,6 +704,9 @@ def restart_all_services_once():
     target_info = remote_host if remote_host else "localhost"
     if remote_host and not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "IP/Host remoto inválido."}), 400
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
     if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
         return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
 
@@ -751,6 +785,9 @@ def list_printers():
 
     if not remote_host or not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "Nome do host ou IP remoto não fornecido."}), 400
+    if not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
     if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
         message = "Credenciais inválidas. Informe usuário e senha no frontend."
@@ -838,6 +875,9 @@ def clear_print_jobs_robust():
     auth_password = frontend_password
     if not remote_host or not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "Nome do host ou IP remoto não fornecido."}), 400
+    if not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
     if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
         message = "Credenciais inválidas. Informe usuário e senha no frontend."
         log_action("Limpar Fila Robusta", remote_host, "Falha", message)
@@ -912,6 +952,9 @@ def test_wmi():
 
     if not remote_host or not validate_remote_host(remote_host):
         return jsonify({"status": "error", "message": "Nome do host ou IP remoto não fornecido."}), 400
+    if not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
     if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
         message = "Credenciais inválidas. Informe usuário e senha no frontend."
@@ -964,6 +1007,7 @@ def get_services_status():
     remote_host = SECURITY.sanitize_string(data.get('remote_host'))
     frontend_username = SECURITY.sanitize_string(data.get('username'))
     frontend_password = data.get('password')
+    domain = SECURITY.sanitize_string(data.get('domain'))
     
     # Permite que o frontend envie uma lista específica de serviços para verificar
     services_to_check = data.get('service_names', DEFAULT_SERVICES_TO_RESTART)
@@ -978,6 +1022,9 @@ def get_services_status():
         message = "Credenciais inválidas para acesso remoto. Informe usuário e senha no frontend."
         log_action("Status Serviços Remoto", remote_host, "Falha", message)
         return jsonify({"status": "error", "message": message}), 500
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
     service_statuses = []
     try:
@@ -990,7 +1037,7 @@ def get_services_status():
             if remote_host:
                 conn = connect_wmi(remote_host, auth_username, auth_password, domain)
             else:
-                conn = wmi.WMI(namespace='root\\cimv2') # Conexão local
+                conn = wmi.WMI(namespace='root\\cimv2')
         except pywintypes.com_error as ce:
             print(f"DEBUG: Erro pywintypes.com_error ao conectar WMI: {ce}")
             raise ce
@@ -1076,3 +1123,63 @@ if __name__ == '__main__':
     key_path = os.path.join(os.path.dirname(__file__), 'key.pem')
     ssl_ctx = (cert_path, key_path) if os.path.exists(cert_path) and os.path.exists(key_path) else None
     app.run(debug=True, host='127.0.0.1', port=5000, ssl_context=ssl_ctx)
+@app.route('/services_status_history')
+def services_status_history():
+    host = request.args.get('host')
+    limit = int(request.args.get('limit', '100'))
+    items = list(STATUS_HISTORY)
+    if host:
+        h = host.strip().lower()
+        items = [i for i in items if (i.get('host') or 'localhost').strip().lower() == h]
+    return jsonify({"status": "success", "items": items[-limit:]})
+
+@app.route('/monitor_status')
+def monitor_status():
+    token = request.args.get('token')
+    info = SESSION_MONITORS.get(token)
+    if not info:
+        return jsonify({"status": "error", "message": "Monitor não encontrado."}), 404
+    t = info.get("thread")
+    running = bool(info.get("running"))
+    alive = bool(t.is_alive()) if t else False
+    return jsonify({"status": "success", "running": running, "alive": alive})
+
+@app.route('/service_error_logs', methods=['POST'])
+def service_error_logs():
+    if not require_csrf():
+        return jsonify({"status": "error", "message": "Falha de validação CSRF."}), 403
+    data = request.get_json()
+    remote_host = SECURITY.sanitize_string(data.get('remote_host'))
+    frontend_username = SECURITY.sanitize_string(data.get('username'))
+    frontend_password = data.get('password')
+    domain = SECURITY.sanitize_string(data.get('domain'))
+    auth_username = frontend_username
+    auth_password = frontend_password
+    if remote_host and not validate_remote_host(remote_host):
+        return jsonify({"status": "error", "message": "IP/Host remoto inválido."}), 400
+    if remote_host and not SECURITY.enforce_remote_policy(remote_host):
+        return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
+    if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
+        return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
+    try:
+        pythoncom.CoInitialize()
+        conn = None
+        if remote_host:
+            conn = connect_wmi(remote_host, auth_username, auth_password, domain)
+        else:
+            conn = wmi.WMI(namespace='root\\cimv2')
+        events = []
+        q = conn.Win32_NTLogEvent(Logfile='System', SourceName='Service Control Manager')
+        for e in list(q)[:50]:
+            events.append({
+                "TimeGenerated": getattr(e, 'TimeGenerated', None),
+                "EventCode": getattr(e, 'EventCode', None),
+                "Message": getattr(e, 'Message', None),
+                "Type": getattr(e, 'Type', None),
+                "ComputerName": getattr(e, 'ComputerName', None),
+            })
+        return jsonify({"status": "success", "events": events})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        pythoncom.CoUninitialize()
