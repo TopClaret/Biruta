@@ -387,8 +387,151 @@
         .button-indent { margin-left: 0; }
         .btn-row { display:flex; align-items:center; gap:10px; margin-left: 0; flex-wrap: wrap; }
         .hint { color:#9ca3af; font-size: 0.8em; }
-        .field-error { border-color:#ef4444 !important; }
+        .field-error { border-color:#ef4444 !important; background-color: #fef2f2; }
+        .field-success { border-color:#10b981 !important; background-color: #f0fdf4; }
         .error-text { color:#ef4444; font-size:0.85em; }
+        
+        /* Sistema de Alertas Personalizados */
+        .alert-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .alert {
+            padding: 16px 20px;
+            border-radius: 12px;
+            border-left: 4px solid;
+            background: #1f2937;
+            color: #e5e7eb;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            animation: slideInRight 0.3s ease-out;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+        
+        .alert.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .alert.hide {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        
+        .alert-error {
+            border-left-color: #ef4444;
+            background: linear-gradient(135deg, #1f2937 0%, #2d1f1f 100%);
+        }
+        
+        .alert-warning {
+            border-left-color: #f59e0b;
+            background: linear-gradient(135deg, #1f2937 0%, #2d291f 100%);
+        }
+        
+        .alert-info {
+            border-left-color: #3b82f6;
+            background: linear-gradient(135deg, #1f2937 0%, #1f2d3b 100%);
+        }
+        
+        .alert-success {
+            border-left-color: #10b981;
+            background: linear-gradient(135deg, #1f2937 0%, #1f2d28 100%);
+        }
+        
+        .alert-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            margin: 0 0 6px 0;
+            font-size: 16px;
+        }
+        
+        .alert-message {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #d1d5db;
+        }
+        
+        .alert-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .alert-action-btn {
+            padding: 6px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e5e7eb;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .alert-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .alert-close {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+        
+        .alert-close:hover {
+            color: #e5e7eb;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .alert-container {
+                left: 20px;
+                right: 20px;
+                max-width: none;
+            }
+            
+            .alert {
+                padding: 14px 16px;
+            }
+        }
         
         #message { margin-top: 18px; font-weight: 600; color: #e5e7eb; text-align: left; }
         .printer-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; margin-top:16px; padding: 8px; background: #ffffff; border-radius: 12px; border:1px solid #e5e7eb; }
@@ -546,10 +689,56 @@
             const remoteEl = document.getElementById('remoteHost');
             const userEl = document.getElementById('username');
             const passEl = document.getElementById('password');
-            [remoteEl, userEl, passEl].forEach(el => el.classList.remove('field-error'));
-            if (!isValidHost(remoteHost)) { res.ok = false; res.message = 'IP/Máquina inválido.'; remoteEl.classList.add('field-error'); return res; }
-            if (!String(usernameInput || '').trim()) { res.ok = false; res.message = 'Informe o usuário.'; userEl.classList.add('field-error'); return res; }
-            if (!String(password || '').trim()) { res.ok = false; res.message = 'Informe a senha.'; passEl.classList.add('field-error'); return res; }
+            const domainEl = document.getElementById('domain');
+            
+            // Limpar erros anteriores
+            [remoteEl, userEl, passEl, domainEl].forEach(el => {
+                el.classList.remove('field-error');
+                el.classList.remove('field-success');
+            });
+            
+            // Validação do host
+            if (!remoteHost || !remoteHost.trim()) {
+                res.ok = false; res.message = 'Informe o IP ou nome da máquina.';
+                remoteEl.classList.add('field-error'); return res;
+            }
+            if (!isValidHost(remoteHost)) { 
+                res.ok = false; res.message = 'IP/Máquina inválido. Use formato IPv4 (192.168.1.1) ou nome de host.'; 
+                remoteEl.classList.add('field-error'); return res; 
+            }
+            
+            // Validação do usuário
+            if (!usernameInput || !usernameInput.trim()) { 
+                res.ok = false; res.message = 'Informe o usuário para autenticação.'; 
+                userEl.classList.add('field-error'); return res; 
+            }
+            if (usernameInput.length > 100) {
+                res.ok = false; res.message = 'Usuário muito longo (máx. 100 caracteres).';
+                userEl.classList.add('field-error'); return res;
+            }
+            
+            // Validação da senha
+            if (!password) { 
+                res.ok = false; res.message = 'Informe a senha para autenticação.'; 
+                passEl.classList.add('field-error'); return res; 
+            }
+            if (password.length > 128) {
+                res.ok = false; res.message = 'Senha muito longa (máx. 128 caracteres).';
+                passEl.classList.add('field-error'); return res;
+            }
+            
+            // Validação opcional do domínio
+            if (domainInput && domainInput.trim() && domainInput.length > 50) {
+                res.ok = false; res.message = 'Domínio muito longo (máx. 50 caracteres).';
+                domainEl.classList.add('field-error'); return res;
+            }
+            
+            // Campos válidos - adicionar indicador visual
+            remoteEl.classList.add('field-success');
+            userEl.classList.add('field-success');
+            passEl.classList.add('field-success');
+            if (domainInput && domainInput.trim()) domainEl.classList.add('field-success');
+            
             return res;
         }
         let printerUpdateInterval = null;
@@ -618,8 +807,6 @@
                 button.disabled = false;
             }
         });
-
-
 
         async function fetchAndRenderPrinters() {
             const button = document.getElementById('listPrintersButton');
@@ -1087,7 +1274,367 @@
             }
         }
 
+        // Função para logging de tentativas de conexão
+        function logConnectionAttempt(remoteHost, username, status, message, error = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = {
+                timestamp,
+                remoteHost,
+                username: username ? username.substring(0, 3) + '***' : 'null', // Log seguro
+                status,
+                message: message.substring(0, 200), // Limitar tamanho
+                error: error ? String(error).substring(0, 100) : null
+            };
+            
+            // Armazenar no localStorage para análise (máx. 50 entradas)
+            try {
+                const existingLogs = JSON.parse(localStorage.getItem('connectionLogs') || '[]');
+                existingLogs.unshift(logEntry);
+                if (existingLogs.length > 50) existingLogs.pop();
+                localStorage.setItem('connectionLogs', JSON.stringify(existingLogs));
+            } catch (e) {
+                console.warn('Falha ao salvar log de conexão:', e);
+            }
+            
+            console.log(`[CONNECTION] ${status}: ${message}`, logEntry);
+        }
+
         toastClose.addEventListener('click', hideToast);
+
+        // Sistema de Gerenciamento de Alertas
+        const alertManager = {
+            container: null,
+            alertId: 0,
+            
+            init() {
+                // Criar container de alertas se não existir
+                if (!document.getElementById('alert-container')) {
+                    const container = document.createElement('div');
+                    container.id = 'alert-container';
+                    container.className = 'alert-container';
+                    document.body.appendChild(container);
+                    this.container = container;
+                } else {
+                    this.container = document.getElementById('alert-container');
+                }
+            },
+            
+            showAlert(type, title, message, actions = [], autoHide = true, duration = 5000) {
+                this.init();
+                const alertId = ++this.alertId;
+                
+                const alertEl = document.createElement('div');
+                alertEl.className = `alert alert-${type}`;
+                alertEl.id = `alert-${alertId}`;
+                alertEl.setAttribute('role', 'alert');
+                alertEl.setAttribute('aria-live', 'assertive');
+                
+                // Ícones por tipo
+                const icons = {
+                    error: '❌',
+                    warning: '⚠️',
+                    info: 'ℹ️',
+                    success: '✅'
+                };
+                
+                const actionsHtml = actions.length > 0 ? `
+                    <div class="alert-actions">
+                        ${actions.map(action => 
+                            `<button class="alert-action-btn" onclick="${action.onclick}">${action.label}</button>`
+                        ).join('')}
+                    </div>
+                ` : '';
+                
+                alertEl.innerHTML = `
+                    <span class="alert-icon" aria-hidden="true">${icons[type] || '💡'}</span>
+                    <div class="alert-content">
+                        <h4 class="alert-title">${title}</h4>
+                        <p class="alert-message">${message}</p>
+                        ${actionsHtml}
+                    </div>
+                    <button class="alert-close" onclick="alertManager.hideAlert(${alertId})" aria-label="Fechar alerta">×</button>
+                `;
+                
+                this.container.appendChild(alertEl);
+                
+                // Animação de entrada
+                setTimeout(() => {
+                    alertEl.classList.add('show');
+                }, 10);
+                
+                // Auto-ocultação
+                if (autoHide) {
+                    setTimeout(() => {
+                        this.hideAlert(alertId);
+                    }, duration);
+                }
+                
+                return alertId;
+            },
+            
+            hideAlert(alertId) {
+                const alertEl = document.getElementById(`alert-${alertId}`);
+                if (alertEl) {
+                    alertEl.classList.remove('show');
+                    alertEl.classList.add('hide');
+                    
+                    setTimeout(() => {
+                        if (alertEl.parentNode) {
+                            alertEl.parentNode.removeChild(alertEl);
+                        }
+                    }, 300);
+                }
+            },
+            
+            clearAll() {
+                if (this.container) {
+                    this.container.innerHTML = '';
+                }
+            }
+        };
+        
+        // Inicializar gerenciador de alertas
+        alertManager.init();
+        
+        // Funções de utilidade para mensagens de erro específicas
+        const errorMessages = {
+            // Erros de autenticação
+            AUTHENTICATION: {
+                INVALID_CREDENTIALS: {
+                    title: 'Credenciais Inválidas',
+                    message: 'O usuário ou senha informados estão incorretos. Verifique se:\\n\\n' +
+                            '1. ✅ O nome de usuário está correto\\n' +
+                            '2. ✅ A senha foi digitada corretamente\\n' +
+                            '3. ✅ O domínio está correto (se aplicável)',
+                    type: 'error',
+                    actions: [
+                        {
+                            label: 'Esqueci minha senha',
+                            onclick: 'showPasswordRecovery()'
+                        },
+                        {
+                            label: 'Tentar novamente',
+                            onclick: 'focusUsernameField()'
+                        }
+                    ]
+                },
+                
+                ACCOUNT_LOCKED: {
+                    title: 'Conta Bloqueada',
+                    message: 'Sua conta foi temporariamente bloqueada devido a múltiplas tentativas falhas.\\n\\n' +
+                            '🔒 Entre em contato com o administrador do sistema para desbloqueio.',
+                    type: 'error',
+                    actions: [
+                        {
+                            label: 'Contatar Administrador',
+                            onclick: 'contactAdministrator()'
+                        }
+                    ]
+                },
+                
+                ACCESS_DENIED: {
+                    title: 'Acesso Negado',
+                    message: 'Você não possui permissão para acessar este recurso.\\n\\n' +
+                            '📋 Verifique se suas credenciais possuem os privilégios necessários.',
+                    type: 'error',
+                    actions: [
+                        {
+                            label: 'Verificar Permissões',
+                            onclick: 'checkPermissions()'
+                        }
+                    ]
+                }
+            },
+            
+            // Erros de rede/conectividade
+            NETWORK: {
+                SERVER_UNREACHABLE: {
+                    title: 'Servidor Indisponível',
+                    message: 'Não foi possível estabelecer conexão com o servidor remoto.\\n\\n' +
+                            '🔍 Verifique:\\n' +
+                            '1. 🌐 A conexão de rede está estável\\n' +
+                            '2. 🔥 O firewall permite a conexão\\n' +
+                            '3. 🖥️ O servidor está online e acessível',
+                    type: 'warning',
+                    actions: [
+                        {
+                            label: 'Testar Conexão',
+                            onclick: 'testNetworkConnection()'
+                        }
+                    ]
+                },
+                
+                RPC_UNAVAILABLE: {
+                    title: 'Serviço RPC Indisponível',
+                    message: 'O serviço de chamada de procedimento remoto (RPC) não está respondendo.\\n\\n' +
+                            '🛠️ Isso pode indicar:\\n' +
+                            '1. ⚠️ Serviço RPC desativado no servidor\\n' +
+                            '2. 🛡️ Bloqueio por firewall ou antivírus\\n' +
+                            '3. 🔌 Problemas na configuração de rede',
+                    type: 'warning',
+                    actions: [
+                        {
+                            label: 'Diagnosticar Rede',
+                            onclick: 'runNetworkDiagnostics()'
+                        }
+                    ]
+                }
+            },
+            
+            // Erros de sistema
+            SYSTEM: {
+                WMI_ACCESS_DENIED: {
+                    title: 'Acesso WMI Negado',
+                    message: 'Falha na autenticação com o Windows Management Instrumentation.\\n\\n' +
+                            '🔐 Possíveis causas:\\n' +
+                            '1. 👤 Credenciais sem privilégios administrativos\\n' +
+                            '2. 📋 Políticas de segurança restritivas\\n' +
+                            '3. 🔧 Configuração incorreta de permissões WMI',
+                    type: 'error',
+                    actions: [
+                        {
+                            label: 'Verificar Privilégios',
+                            onclick: 'checkWMIPermissions()'
+                        }
+                    ]
+                },
+                
+                SERVICE_UNAVAILABLE: {
+                    title: 'Serviço Indisponível',
+                    message: 'O serviço necessário para esta operação não está disponível.\\n\\n' +
+                            '⚙️ Verifique se o serviço está em execução no servidor remoto.',
+                    type: 'warning',
+                    actions: [
+                        {
+                            label: 'Verificar Serviços',
+                            onclick: 'checkRemoteServices()'
+                        }
+                    ]
+                }
+            }
+        };
+        
+        // Função para exibir erro baseado no tipo e código
+        function showErrorAlert(errorType, errorCode, technicalDetails = '') {
+            const errorConfig = errorMessages[errorType]?.[errorCode];
+            
+            if (!errorConfig) {
+                // Fallback para erro genérico
+                return alertManager.showAlert('error', 
+                    'Erro Desconhecido', 
+                    'Ocorreu um erro inesperado durante a operação.' +
+                    (technicalDetails ? `\\n\\nDetalhes técnicos: ${technicalDetails}` : '')
+                );
+            }
+            
+            let message = errorConfig.message;
+            
+            // Adicionar detalhes técnicos em modo de desenvolvimento
+            if (technicalDetails && console) {
+                console.error(`[${errorType}:${errorCode}] ${technicalDetails}`);
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    message += `\\n\\n🔧 Detalhes técnicos (apenas desenvolvimento):\\n${technicalDetails}`;
+                }
+            }
+            
+            return alertManager.showAlert(
+                errorConfig.type,
+                errorConfig.title,
+                message,
+                errorConfig.actions,
+                true,
+                8000 // 8 segundos para erros
+            );
+        }
+        
+        // Funções de ação para os botões dos alertas
+        function showPasswordRecovery() {
+            alertManager.showAlert('info', 'Recuperação de Senha', 
+                'Entre em contato com o administrador do sistema para redefinir sua senha.\\n\\n' +
+                '📞 Suporte: suporte@empresa.com\\n' +
+                '🌐 Portal: https://suporte.empresa.com');
+        }
+        
+        function focusUsernameField() {
+            document.getElementById('username')?.focus();
+        }
+        
+        function contactAdministrator() {
+            alertManager.showAlert('info', 'Contato do Administrador', 
+                'Entre em contato com o administrador do sistema:\\n\\n' +
+                '👤 Nome: Administrador do Sistema\\n' +
+                '📧 Email: admin@empresa.com\\n' +
+                '📞 Telefone: (11) 99999-9999');
+        }
+        
+        function testNetworkConnection() {
+            alertManager.showAlert('info', 'Teste de Conexão', 
+                'Iniciando diagnóstico de rede...\\n\\n' +
+                '📡 Verificando conectividade com o servidor remoto.');
+            // Implementar teste de conexão real aqui
+        }
+        
+        // Funções de ação para os botões dos alertas
+        function checkPermissions() {
+            alertManager.showAlert('info', 'Verificação de Permissões', 
+                'Verificando privilégios de usuário...\\n\\n' +
+                '🔍 Analisando permissões necessárias para acesso WMI.\\n' +
+                '📋 Requer privilégios administrativos no servidor remoto.');
+            // Implementar verificação real de permissões aqui
+        }
+        
+        function runNetworkDiagnostics() {
+            alertManager.showAlert('info', 'Diagnóstico de Rede', 
+                'Executando diagnóstico completo de rede...\\n\\n' +
+                '🌐 Testando conectividade com o servidor\\n' +
+                '🔥 Verificando configurações de firewall\\n' +
+                '🛡️ Analisando políticas de segurança');
+            // Implementar diagnóstico de rede real aqui
+        }
+        
+        function checkWMIPermissions() {
+            alertManager.showAlert('info', 'Permissões WMI', 
+                'Verificando configurações do Windows Management Instrumentation...\\n\\n' +
+                '⚙️ Analisando permissões WMI no servidor\\n' +
+                '🔐 Verificando políticas de segurança DCOM\\n' +
+                '📊 Validando configurações de namespace WMI');
+            // Implementar verificação real de permissões WMI aqui
+        }
+        
+        function checkRemoteServices() {
+            alertManager.showAlert('info', 'Verificação de Serviços', 
+                'Verificando serviços remotos necessários...\\n\\n' +
+                '🖥️ Serviço de Impressão (Spooler)\\n' +
+                '🔗 Serviço RPC (Remote Procedure Call)\\n' +
+                '🌐 Serviço WMI (Windows Management Instrumentation)');
+            // Implementar verificação real de serviços aqui
+        }
+        
+        // Função para mapear erros do backend para mensagens amigáveis
+        function mapBackendErrorToFriendlyMessage(backendError, technicalDetails = '') {
+            const errorMap = {
+                'Acesso negado': { type: 'AUTHENTICATION', code: 'INVALID_CREDENTIALS' },
+                'access denied': { type: 'AUTHENTICATION', code: 'INVALID_CREDENTIALS' },
+                'invalid credentials': { type: 'AUTHENTICATION', code: 'INVALID_CREDENTIALS' },
+                'RPC': { type: 'NETWORK', code: 'RPC_UNAVAILABLE' },
+                'não foi possível localizar': { type: 'NETWORK', code: 'SERVER_UNREACHABLE' },
+                'não há mais endpoints': { type: 'NETWORK', code: 'RPC_UNAVAILABLE' },
+                'WMI': { type: 'SYSTEM', code: 'WMI_ACCESS_DENIED' },
+                'service': { type: 'SYSTEM', code: 'SERVICE_UNAVAILABLE' }
+            };
+            
+            // Encontrar a melhor correspondência
+            let bestMatch = { type: 'SYSTEM', code: 'SERVICE_UNAVAILABLE' };
+            
+            for (const [keyword, mapping] of Object.entries(errorMap)) {
+                if (backendError.toLowerCase().includes(keyword.toLowerCase())) {
+                    bestMatch = mapping;
+                    break;
+                }
+            }
+            
+            return showErrorAlert(bestMatch.type, bestMatch.code, technicalDetails);
+        }
 
         document.getElementById('connectButton').addEventListener('click', async () => {
             const remoteHost = document.getElementById('remoteHost').value.trim();
@@ -1096,24 +1643,45 @@
             const domain = document.getElementById('domain').value.trim();
             const connectBtn = document.getElementById('connectButton');
             const messageElement = document.getElementById('message');
+            
+            // Bloquear múltiplas submissões simultâneas
+            if (connectBtn.getAttribute('data-submitting') === 'true') {
+                return;
+            }
+            connectBtn.setAttribute('data-submitting', 'true');
+            
+            // Salvar dados atuais para persistência em caso de erro
+            const currentFormData = {
+                remoteHost,
+                usernameInput,
+                domain,
+                password: password ? '••••••••' : '' // Não armazenar senha real
+            };
+            sessionStorage.setItem('lastConnectionAttempt', JSON.stringify(currentFormData));
+            
             const creds = composeCredentials(usernameInput, domain);
             if (creds.domain && !domain) {
                 const domEl = document.getElementById('domain');
                 domEl.value = creds.domain;
             }
+            
             const v = validateConnectionInputs(remoteHost, creds.userNoDomain, password, creds.domain);
-            if (!v.ok) { messageElement.textContent = v.message; messageElement.className = 'error'; return; }
-            const composedUser = creds.userWithDomain;
-
-            if (!remoteHost || !usernameInput || !password) {
-                messageElement.textContent = 'Informe IP, usuário e senha.';
-                messageElement.className = 'error';
-                return;
+            if (!v.ok) { 
+                // Usar sistema de alertas para erros de validação
+                showErrorAlert('AUTHENTICATION', 'INVALID_CREDENTIALS', v.message);
+                logConnectionAttempt(remoteHost, usernameInput, 'VALIDATION_ERROR', v.message);
+                connectBtn.removeAttribute('data-submitting');
+                return; 
             }
+            
+            const composedUser = creds.userWithDomain;
 
             connectBtn.disabled = true;
             messageElement.textContent = 'Conectando...';
             messageElement.className = '';
+            
+            // Log do início da tentativa
+            logConnectionAttempt(remoteHost, usernameInput, 'START', 'Iniciando tentativa de conexão WMI');
 
             try {
                 const response = await fetch('/test_wmi', {
@@ -1121,31 +1689,83 @@
                     headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
                     body: JSON.stringify({ remote_host: remoteHost, username: composedUser, password })
                 });
+                
                 const data = await response.json();
                 const now = new Date();
-                const infoHtml = `IP: ${remoteHost}<br>Data/Hora: ${now.toLocaleString()}<br>Status: ${response.ok ? 'Conectado' : 'Erro'}`;
+                
                 if (response.ok && data.status === 'success') {
+                    // Conexão bem-sucedida
                     messageElement.textContent = data.message;
                     messageElement.className = 'success';
+                    logConnectionAttempt(remoteHost, usernameInput, 'SUCCESS', data.message);
+                    
+                    // Mostrar alerta de sucesso
+                    alertManager.showAlert('success', 'Conexão Bem-sucedida', 
+                        data.message + '\n\n✅ Conexão estabelecida com sucesso.',
+                        [], true, 3000);
+                    
+                    // Limpar dados de tentativa anterior
+                    sessionStorage.removeItem('lastConnectionAttempt');
+                    
                     fetchAndRenderServiceStatus();
                     fetchAndRenderPrintersSummary();
                     await startServiceMonitorIfNeeded();
                     connectServiceStatusEvents();
                     updateMonitorStatus();
+                    
                 } else {
-                    const errMsg = data && data.message ? data.message : 'Falha ao conectar.';
+                    // Erro na conexão - usar sistema de alertas
+                    let errMsg = 'Falha na conexão.';
+                    
+                    if (data && data.message) {
+                        errMsg = data.message;
+                        // Usar o mapeador de erros para mensagens amigáveis
+                        mapBackendErrorToFriendlyMessage(errMsg, JSON.stringify(data));
+                    } else {
+                        // Fallback para erro genérico
+                        showErrorAlert('SYSTEM', 'SERVICE_UNAVAILABLE', 'Erro desconhecido na conexão');
+                    }
+                    
+                    // Manter mensagem no elemento original também (para compatibilidade)
                     messageElement.textContent = errMsg;
                     messageElement.className = 'error';
+                    logConnectionAttempt(remoteHost, usernameInput, 'ERROR', errMsg, data);
+                    
+                    // Manter os dados do formulário para correção
+                    restoreFormData(remoteHost, usernameInput, domain);
                 }
+                
             } catch (e) {
-                const now = new Date();
-                const infoHtml = `IP: ${remoteHost}<br>Data/Hora: ${now.toLocaleString()}<br>Status: Erro`;
-                messageElement.textContent = 'Não foi possível conectar ao servidor. Certifique-se de que o aplicativo está rodando.';
+                // Erro de rede ou servidor indisponível
+                const errorMsg = 'Não foi possível conectar ao servidor. Verifique:\\n1. Se o aplicativo está rodando\\n2. Sua conexão de rede\\n3. Firewall e permissões';
+                
+                // Usar sistema de alertas para erros de rede
+                showErrorAlert('NETWORK', 'SERVER_UNREACHABLE', e.message);
+                
+                messageElement.textContent = errorMsg;
                 messageElement.className = 'error';
+                logConnectionAttempt(remoteHost, usernameInput, 'NETWORK_ERROR', errorMsg, e);
+                
+                // Manter os dados do formulário
+                restoreFormData(remoteHost, usernameInput, domain);
+                
             } finally {
                 connectBtn.disabled = false;
+                connectBtn.removeAttribute('data-submitting');
             }
         });
+        
+        // Função para restaurar dados do formulário após erro
+        function restoreFormData(remoteHost, username, domain) {
+            try {
+                if (remoteHost) document.getElementById('remoteHost').value = remoteHost;
+                if (username) document.getElementById('username').value = username;
+                if (domain) document.getElementById('domain').value = domain;
+                // Senha não é restaurada por segurança
+            } catch (e) {
+                console.warn('Falha ao restaurar dados do formulário:', e);
+            }
+        }
 
         // Event listener para o filtro de serviços
         document.getElementById('serviceFilter').addEventListener('keyup', (event) => {

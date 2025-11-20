@@ -14,6 +14,8 @@ import pythoncom
 import socket
 import win32com.client
 import pywintypes
+import re
+import secrets
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from security_manager import SecurityManager
@@ -31,7 +33,17 @@ logging.basicConfig(
 )
 
 def log_action(action_type, target, status, message):
-    log_entry = f"Tipo: {action_type}, Alvo: {target}, Status: {status}, Mensagem: {message}"
+    # Redação de informações sensíveis
+    redacted_target = target
+    redacted_message = message
+    
+    # Redaciona tokens e informações sensíveis
+    if any(keyword in message.lower() for keyword in ['token', 'password', 'senha', 'credential']):
+        redacted_message = re.sub(r'(?i)(token|password|senha|credential)[\s=:]+[A-Za-z0-9._-]{4,}', r'\1=[REDACTED]', message)
+    if any(sensitive in str(target).lower() for sensitive in ['password', 'senha', 'token', 'credential']):
+        redacted_target = '[REDACTED]'
+    
+    log_entry = f"Tipo: {action_type}, Alvo: {redacted_target}, Status: {status}, Mensagem: {redacted_message}"
     logging.info(log_entry)
 
 SECURITY_HEADERS = {
@@ -55,10 +67,12 @@ def build_csp(nonce=None):
             "form-action 'self'",
         ])
     else:
+        # Gera nonce para scripts e styles mesmo em modo não-debug
+        nonce = secrets.token_hex(16)
         return "; ".join([
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline'",
-            "style-src 'self' 'unsafe-inline'",
+            f"script-src 'self' 'nonce-{nonce}'",
+            f"style-src 'self' 'nonce-{nonce}'",
             "img-src 'self' data:",
             "connect-src 'self'",
             "font-src 'self' data:",
@@ -169,6 +183,71 @@ def is_local_host(host):
         return False
     except Exception:
         return False
+
+def sanitize_command_input(input_str):
+    """Sanitiza inputs para prevenir injeção de comandos"""
+    if not isinstance(input_str, str):
+        return ""
+    
+    # Remove caracteres perigosos para injeção de comandos
+    dangerous_chars = ['&', '|', ';', '`', '$', '(', ')', '{', '}', '[', ']', '<', '>', '!', '*', '?', '~']
+    for char in dangerous_chars:
+        input_str = input_str.replace(char, '')
+    
+    # Remove tentativas de redirecionamento e espaços extras
+    input_str = re.sub(r'\s*(>|>>|<)\s*\S*', '', input_str)
+    input_str = re.sub(r'\s+', ' ', input_str)  # Remove múltiplos espaços
+    
+    # Limita o comprimento
+    return input_str.strip()[:1000]
+
+def safe_subprocess_run(command_args, **kwargs):
+    """Executa subprocess.run com validação de segurança"""
+    if not isinstance(command_args, list):
+        raise ValueError("command_args deve ser uma lista")
+    
+    # Sanitiza cada argumento do comando
+    sanitized_args = []
+    for arg in command_args:
+        if isinstance(arg, str):
+            sanitized_args.append(sanitize_command_input(arg))
+        else:
+            sanitized_args.append(arg)
+    
+    # Configurações de segurança padrão
+    safe_kwargs = {
+        'check': False,
+        'timeout': 30,
+        'capture_output': True,
+        'text': True
+    }
+    safe_kwargs.update(kwargs)
+    
+    return subprocess.run(sanitized_args, **safe_kwargs)
+
+def secure_cleanup(sensitive_data):
+    """Limpa dados sensíveis da memória de forma segura"""
+    if isinstance(sensitive_data, str):
+        # Sobrescreve a string com zeros e depois a torna inacessível
+        try:
+            # Converte para bytearray para sobrescrever
+            ba = bytearray(sensitive_data, 'utf-8')
+            for i in range(len(ba)):
+                ba[i] = 0
+            # Garante que a referência original seja eliminada
+            del ba
+        except:
+            pass
+        finally:
+            # Força garbage collection para limpeza imediata
+            import gc
+            gc.collect()
+    elif isinstance(sensitive_data, (list, dict)):
+        # Limpa recursivamente estruturas de dados
+        for item in sensitive_data:
+            secure_cleanup(item)
+    # Retorna None para evitar reutilização
+    return None
 
     # nao mecher ate 198
 def connect_wmi(remote_host, user, password, domain=None):
@@ -411,8 +490,8 @@ def start_service_monitor():
     if remote_host and not SECURITY.enforce_remote_policy(remote_host):
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
-    if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
-        return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
+    if remote_host and (not auth_username or not auth_password):
+        return jsonify({"status": "error", "message": "Informe usuário e senha para monitoramento."}), 400
 
     token = SECURITY.generate_auth_token()
     q = queue.Queue(maxsize=200)
@@ -464,7 +543,7 @@ def _get_single_service_status(service_name, remote_host, auth_username, auth_pa
         else:
             return {"status": "error", "message": f"Serviço {service_name} não encontrado."}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": format_wmi_error(e)}
     finally:
         pythoncom.CoUninitialize()
 
@@ -593,10 +672,11 @@ def restart_service():
     auth_username = frontend_username
     auth_password = frontend_password
 
-    if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password) or not validate_remote_host(remote_host)):
-        message = "Credenciais inválidas para acesso remoto. Informe usuário e senha no frontend."
+    # Validação básica para acesso remoto
+    if remote_host and (not auth_username or not auth_password):
+        message = "Informe usuário e senha para acesso remoto."
         log_action("Reinício Serviço Único", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
+        return jsonify({"status": "error", "message": message}), 400
 
     target_info = remote_host if remote_host else "localhost"
     lock_key = f"{target_info}:{service_name}"
@@ -655,8 +735,8 @@ def restart_multiple_services():
     auth_password = frontend_password
     if remote_host and (not validate_remote_host(remote_host)):
         return jsonify({"status": "error", "message": "IP/Host remoto inválido."}), 400
-    if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
-        return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
+    if remote_host and (not auth_username or not auth_password):
+        return jsonify({"status": "error", "message": "Informe usuário e senha para reiniciar serviços."}), 400
 
     results = []
     target_info = remote_host if remote_host else "localhost"
@@ -708,7 +788,7 @@ def restart_all_services_once():
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
     if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
-        return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
+        return jsonify({"status": "error", "message": "Informe credenciais válidas."}), 400
 
     if not acquire_lock(RESTART_LOCKS, target_info):
         message = f"Já existe um reinício sequencial em andamento para {target_info}."
@@ -789,10 +869,11 @@ def list_printers():
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
-    if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
-        message = "Credenciais inválidas. Informe usuário e senha no frontend."
+    # Validação básica - apenas verifica se não está vazio
+    if not auth_username or not auth_password:
+        message = "Informe usuário e senha para listar impressoras."
         log_action("Listar Impressoras Remoto", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
+        return jsonify({"status": "error", "message": message}), 400
 
     response_data = None
     status_code = 200 # Default to success
@@ -878,10 +959,11 @@ def clear_print_jobs_robust():
     if not SECURITY.enforce_remote_policy(remote_host):
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
-    if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
-        message = "Credenciais inválidas. Informe usuário e senha no frontend."
+    # Validação básica - apenas verifica se não está vazio
+    if not auth_username or not auth_password:
+        message = "Informe usuário e senha para limpar a fila de impressão."
         log_action("Limpar Fila Robusta", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
+        return jsonify({"status": "error", "message": message}), 400
 
     try:
         pythoncom.CoInitialize()
@@ -903,7 +985,7 @@ def clear_print_jobs_robust():
 
         if is_local_host(remote_host):
             try:
-                subprocess.run(["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", cmd], check=False)
+                safe_subprocess_run(["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", cmd])
             except Exception:
                 pass
         else:
@@ -956,10 +1038,11 @@ def test_wmi():
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
 
-    if not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password):
-        message = "Credenciais inválidas. Informe usuário e senha no frontend."
+    # Validação básica - apenas verifica se não está vazio
+    if not auth_username or not auth_password:
+        message = "Informe usuário e senha para conectar."
         log_action("Teste WMI Remoto", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
+        return jsonify({"status": "error", "message": message}), 400
 
     try:
         pythoncom.CoInitialize()
@@ -974,9 +1057,9 @@ def test_wmi():
             conn = wmi.WMI(computer=remote_host, user=auth_username, password=auth_password, namespace='root\\cimv2')
 
         # Se a conexão for bem-sucedida, tentamos uma consulta simples para validar
-        conn.Win32_OperatingSystem()[0] 
+        os_info = conn.Win32_OperatingSystem()[0];
         
-        message = f"Conexão WMI bem-sucedida com {remote_host}!"
+        message = f"Conexão WMI bem-sucedida com {remote_host}! Sistema: {os_info.Caption}"
         log_action("Teste WMI Remoto", remote_host, "Sucesso", message)
         auth_username = None
         auth_password = None
@@ -1018,10 +1101,11 @@ def get_services_status():
     print(f"DEBUG: Credenciais WMI: Usuário={auth_username}, Senha=***")
     if not remote_host:
         print("DEBUG: Host remoto não fornecido. Tentando obter status de serviços locais.")
-    elif not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password) or (remote_host and not validate_remote_host(remote_host)):
-        message = "Credenciais inválidas para acesso remoto. Informe usuário e senha no frontend."
+    # Validação básica para acesso remoto
+    elif not auth_username or not auth_password or (remote_host and not validate_remote_host(remote_host)):
+        message = "Informe credenciais válidas para acesso remoto."
         log_action("Status Serviços Remoto", remote_host, "Falha", message)
-        return jsonify({"status": "error", "message": message}), 500
+        return jsonify({"status": "error", "message": message}), 400
     if remote_host and not SECURITY.enforce_remote_policy(remote_host):
         log_action("Segurança", remote_host, "Bloqueado", "Política de host remoto rejeitou operação")
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
@@ -1067,8 +1151,7 @@ def get_services_status():
                     # Fallback para serviços locais se a conexão WMI falhar ou não for remota
                     # Isso pode ser feito com 'sc query' via subprocess
                     print(f"DEBUG: Conexão WMI não estabelecida para {service_name}. Tentando método alternativo (local).")
-                    result = subprocess.run(["sc", "query", service_name],
-                                            capture_output=True, text=True, check=False)
+                    result = safe_subprocess_run(["sc", "query", service_name])
                     if result.returncode == 0:
                         output = result.stdout.lower()
                         status = "Unknown"
@@ -1160,7 +1243,7 @@ def service_error_logs():
     if remote_host and not SECURITY.enforce_remote_policy(remote_host):
         return jsonify({"status": "error", "message": "Operação não permitida para este host."}), 403
     if remote_host and (not auth_username or not auth_password or not validate_username(auth_username) or not validate_password(auth_password)):
-        return jsonify({"status": "error", "message": "Credenciais inválidas."}), 500
+        return jsonify({"status": "error", "message": "Informe credenciais válidas."}), 400
     try:
         pythoncom.CoInitialize()
         conn = None

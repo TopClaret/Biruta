@@ -3,6 +3,7 @@ import secrets
 import os
 import base64
 import hashlib
+import re
 from typing import Optional, Dict
 try:
     import win32crypt
@@ -26,7 +27,28 @@ class SecurityManager:
         return all(c in allowed for c in user)
 
     def validate_password(self, pwd: Optional[str]) -> bool:
-        return bool(pwd) and len(pwd) >= 8
+        if not pwd or len(pwd) < 12:
+            return False
+        
+        # Verifica complexidade da senha
+        has_upper = any(c.isupper() for c in pwd)
+        has_lower = any(c.islower() for c in pwd)
+        has_digit = any(c.isdigit() for c in pwd)
+        has_special = any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?/' for c in pwd)
+        
+        # Requer pelo menos 3 dos 4 tipos de caracteres
+        complexity_score = sum([has_upper, has_lower, has_digit, has_special])
+        
+        # Previne senhas comuns e padrões simples
+        common_passwords = {'password', '123456', 'admin', 'welcome', 'senha', '123456789', 'qwerty'}
+        if pwd.lower() in common_passwords:
+            return False
+        
+        # Previne apenas repetições excessivas (4+ caracteres idênticos consecutivos)
+        if re.search(r'(.)\1{3,}', pwd):  # 4 ou mais caracteres repetidos consecutivos
+            return False
+        
+        return complexity_score >= 3 and len(pwd) >= 12
 
     def validate_remote_host(self, host: Optional[str]) -> bool:
         if not host or len(host) > 255:
