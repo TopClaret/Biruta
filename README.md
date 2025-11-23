@@ -65,3 +65,6 @@ python -m unittest discover -s tests -v
 ## Compatibilidade
 A migração mantém compatibilidade com o código legado:
 - As funções existentes (`require_csrf`, `validate_*`, `rate_limit`) delegam ao `SecurityManager`.
+
+## Creditos
+- Este projeto foi criado com IA
